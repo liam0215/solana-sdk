@@ -1,5 +1,4 @@
 //! 64-byte signature type.
-#![no_std]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(feature = "frozen-abi", feature(min_specialization))]
 #[cfg(any(test, feature = "verify"))]
@@ -55,6 +54,7 @@ impl Signature {
     ) -> Result<(), ed25519_dalek::SignatureError> {
         let publickey = ed25519_dalek::PublicKey::from_bytes(pubkey_bytes)?;
         let signature = self.0.as_slice().try_into()?;
+        // println!("Message bytes size: {:?}", message_bytes.len());
         publickey.verify_strict(message_bytes, &signature)
     }
 

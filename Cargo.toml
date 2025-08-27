@@ -149,8 +149,8 @@ criterion = "0.5.1"
 curve25519-dalek = { version = "4.1.3", features = ["digest", "rand_core"] }
 derivation-path = { version = "0.2.0", default-features = false }
 digest = "0.10.7"
-ed25519-dalek = "=1.0.1"
-ed25519-dalek-bip32 = "0.2.0"
+ed25519-dalek = { path = "/data2/liam/ed25519-dalek" }
+ed25519-dalek-bip32 = { path = "/data2/liam/ed25519-dalek-bip32" }
 env_logger = "0.9.3"
 five8_const = "0.1.3"
 getrandom = "0.2.10"
@@ -304,6 +304,7 @@ tiny-bip39 = "0.8.2"
 toml = "0.8.20"
 uriparse = "0.6.4"
 wasm-bindgen = "0.2"
+qat-shim = { path = "/data/liam/qat-shim" }
 
 [patch.crates-io]
 # We include the following crates as our dependencies above from crates.io:
@@ -337,3 +338,6 @@ solana-instruction = { path = "instruction" }
 solana-program-error = { path = "program-error" }
 solana-pubkey = { path = "pubkey" }
 solana-sysvar-id = { path = "sysvar-id" }
+ed25519-dalek = { path = "/data2/liam/ed25519-dalek" }
+ed25519-dalek-bip32 = { path = "/data2/liam/ed25519-dalek-bip32" }
+qat-shim = { path = "/data/liam/qat-shim" }

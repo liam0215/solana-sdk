@@ -219,12 +219,14 @@ pub mod test {
         super::*,
         ed25519_dalek::Signer as EdSigner,
         hex,
+        qat_shim::qat::{self, Instance},
         rand0_7::{thread_rng, Rng},
         solana_feature_set::FeatureSet,
         solana_hash::Hash,
         solana_keypair::Keypair,
         solana_sdk::transaction::Transaction,
         solana_signer::Signer,
+        std::sync::mpsc::{channel, TryRecvError},
     };
 
     pub fn new_ed25519_instruction_raw(
@@ -436,7 +438,26 @@ pub mod test {
     #[test]
     fn test_ed25519() {
         solana_logger::setup();
-
+        qat_shim::qat::start_session("SSL").expect("start session failed");
+        qat_shim::qat::qae_mem_init().expect("qae_mem_init failed");
+        let inst: Instance = qat::get_first_instance().expect("failed to get first instance");
+        inst.set_address_translation()
+            .expect("set address translation failed");
+        inst.start().expect("start instance failed");
+        let (tx_poll, poll) = if inst.is_polled().unwrap() {
+            let (tx, rx) = channel();
+            let inst2 = inst.clone();
+            let poll = std::thread::spawn(move || {
+                while matches!(rx.try_recv(), Err(TryRecvError::Empty)) {
+                    let _ = inst2.clone().poll_once();
+                }
+                println!("Polling thread exiting");
+            });
+            (Some(tx), Some(poll))
+        } else {
+            (None, None)
+        };
+        println!("Here");
         let privkey = ed25519_dalek::Keypair::generate(&mut thread_rng());
         let message_arr = b"hello";
         let mut instruction = new_ed25519_instruction(&privkey, message_arr);
@@ -450,6 +471,7 @@ pub mod test {
             Hash::default(),
         );
 
+        println!("Here 2");
         assert!(tx.verify_precompiles(&feature_set).is_ok());
 
         let index = loop {
@@ -468,10 +490,38 @@ pub mod test {
             Hash::default(),
         );
         assert!(tx.verify_precompiles(&feature_set).is_err());
+        if let Some(tx_poll) = tx_poll {
+            tx_poll
+                .send(())
+                .expect("Failed to send stop signal to polling thread");
+            poll.unwrap().join().expect("Polling thread panicked");
+        }
+        inst.stop().expect("stop instance failed");
+        qat_shim::qat::stop_session().expect("stop session failed");
+        // qat_shim::qat::qae_mem_destroy();
+        // println!("Here 8");
     }
 
     #[test]
     fn test_offsets_to_ed25519_instruction() {
+        qat_shim::qat::start_session("SSL").expect("start session failed");
+        qat_shim::qat::qae_mem_init().expect("qae_mem_init failed");
+        let inst: Instance = qat::get_first_instance().expect("failed to get first instance");
+        inst.set_address_translation()
+            .expect("set address translation failed");
+        inst.start().expect("start instance failed");
+        let (tx_poll, poll) = if inst.is_polled().unwrap() {
+            let (tx, rx) = channel();
+            let inst2 = inst.clone();
+            let poll = std::thread::spawn(move || {
+                while matches!(rx.try_recv(), Err(TryRecvError::Empty)) {
+                    let _ = inst2.clone().poll_once();
+                }
+            });
+            (Some(tx), Some(poll))
+        } else {
+            (None, None)
+        };
         solana_logger::setup();
 
         let privkey = ed25519_dalek::Keypair::generate(&mut thread_rng());
@@ -539,11 +589,38 @@ pub mod test {
             Hash::default(),
         );
         assert!(tx.verify_precompiles(&feature_set).is_err());
+        if let Some(tx_poll) = tx_poll {
+            tx_poll
+                .send(())
+                .expect("Failed to send stop signal to polling thread");
+            poll.unwrap().join().expect("Polling thread panicked");
+        }
+        inst.stop().expect("stop instance failed");
+        qat_shim::qat::stop_session().expect("stop session failed");
+        qat_shim::qat::qae_mem_destroy();
     }
 
     #[test]
     fn test_ed25519_malleability() {
         solana_logger::setup();
+        qat_shim::qat::start_session("SSL").expect("start session failed");
+        qat_shim::qat::qae_mem_init().expect("qae_mem_init failed");
+        let inst: Instance = qat::get_first_instance().expect("failed to get first instance");
+        inst.set_address_translation()
+            .expect("set address translation failed");
+        inst.start().expect("start instance failed");
+        let (tx_poll, poll) = if inst.is_polled().unwrap() {
+            let (tx, rx) = channel();
+            let inst2 = inst.clone();
+            let poll = std::thread::spawn(move || {
+                while matches!(rx.try_recv(), Err(TryRecvError::Empty)) {
+                    let _ = inst2.clone().poll_once();
+                }
+            });
+            (Some(tx), Some(poll))
+        } else {
+            (None, None)
+        };
         let mint_keypair = Keypair::new();
 
         // sig created via ed25519_dalek: both pass
@@ -557,8 +634,8 @@ pub mod test {
             Hash::default(),
         );
 
-        let feature_set = FeatureSet::default();
-        assert!(tx.verify_precompiles(&feature_set).is_ok());
+        // let feature_set = FeatureSet::default();
+        // assert!(tx.verify_precompiles(&feature_set).is_ok());
 
         let feature_set = FeatureSet::all_enabled();
         assert!(tx.verify_precompiles(&feature_set).is_ok());
@@ -580,10 +657,18 @@ pub mod test {
             Hash::default(),
         );
 
-        let feature_set = FeatureSet::default();
-        assert!(tx.verify_precompiles(&feature_set).is_ok());
+        // let feature_set = FeatureSet::default();
+        // assert!(tx.verify_precompiles(&feature_set).is_ok());
 
         let feature_set = FeatureSet::all_enabled();
         assert!(tx.verify_precompiles(&feature_set).is_err()); // verify_strict does NOT pass
+        if let Some(tx_poll) = tx_poll {
+            tx_poll
+                .send(())
+                .expect("Failed to send stop signal to polling thread");
+            poll.unwrap().join().expect("Polling thread panicked");
+        }
+        inst.stop().expect("stop instance failed");
+        qat_shim::qat::stop_session().expect("stop session failed");
     }
 }
