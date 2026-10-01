@@ -21,13 +21,13 @@ pub const DATA_START: usize = SIGNATURE_OFFSETS_SERIALIZED_SIZE + SIGNATURE_OFFS
 #[derive(Default, Debug, Copy, Clone, Zeroable, Pod, Eq, PartialEq)]
 #[repr(C)]
 pub struct Ed25519SignatureOffsets {
-    signature_offset: u16,             // offset to ed25519 signature of 64 bytes
-    signature_instruction_index: u16,  // instruction index to find signature
-    public_key_offset: u16,            // offset to public key of 32 bytes
-    public_key_instruction_index: u16, // instruction index to find public key
-    message_data_offset: u16,          // offset to start of message data
-    message_data_size: u16,            // size of message data
-    message_instruction_index: u16,    // index of instruction data to get message data
+    pub signature_offset: u16, // offset to ed25519 signature of 64 bytes
+    pub signature_instruction_index: u16, // instruction index to find signature
+    pub public_key_offset: u16, // offset to public key of 32 bytes
+    pub public_key_instruction_index: u16, // instruction index to find public key
+    pub message_data_offset: u16, // offset to start of message data
+    pub message_data_size: u16, // size of message data
+    pub message_instruction_index: u16, // index of instruction data to get message data
 }
 
 /// Encode just the signature offsets in a single ed25519 instruction.
@@ -226,7 +226,6 @@ pub mod test {
         solana_keypair::Keypair,
         solana_sdk::transaction::Transaction,
         solana_signer::Signer,
-        std::sync::mpsc::{channel, TryRecvError},
     };
 
     pub fn new_ed25519_instruction_raw(
@@ -353,23 +352,10 @@ pub mod test {
     #[test]
     fn test_message_data_offsets() {
         qat_shim::qat::start_session("SSL").expect("start session failed");
-        qat_shim::qat::qae_mem_init().expect("qae_mem_init failed");
         let inst: Instance = qat::get_first_instance().expect("failed to get first instance");
         inst.set_address_translation()
             .expect("set address translation failed");
         inst.start().expect("start instance failed");
-        let (tx_poll, poll) = if inst.is_polled().unwrap() {
-            let (tx, rx) = channel();
-            let inst2 = inst.clone();
-            let poll = std::thread::spawn(move || {
-                while matches!(rx.try_recv(), Err(TryRecvError::Empty)) {
-                    let _ = inst2.clone().poll_once();
-                }
-            });
-            (Some(tx), Some(poll))
-        } else {
-            (None, None)
-        };
         let offsets = Ed25519SignatureOffsets {
             message_data_offset: 99,
             message_data_size: 1,
@@ -409,12 +395,6 @@ pub mod test {
             test_case(1, &offsets),
             Err(PrecompileError::InvalidDataOffsets)
         );
-        if let Some(tx_poll) = tx_poll {
-            tx_poll
-                .send(())
-                .expect("Failed to send stop signal to polling thread");
-            poll.unwrap().join().expect("Polling thread panicked");
-        }
         inst.stop().expect("stop instance failed");
         qat_shim::qat::stop_session().expect("stop session failed");
     }
@@ -465,24 +445,10 @@ pub mod test {
     fn test_ed25519() {
         solana_logger::setup();
         qat_shim::qat::start_session("SSL").expect("start session failed");
-        qat_shim::qat::qae_mem_init().expect("qae_mem_init failed");
         let inst: Instance = qat::get_first_instance().expect("failed to get first instance");
         inst.set_address_translation()
             .expect("set address translation failed");
         inst.start().expect("start instance failed");
-        let (tx_poll, poll) = if inst.is_polled().unwrap() {
-            let (tx, rx) = channel();
-            let inst2 = inst.clone();
-            let poll = std::thread::spawn(move || {
-                while matches!(rx.try_recv(), Err(TryRecvError::Empty)) {
-                    let _ = inst2.clone().poll_once();
-                }
-                println!("Polling thread exiting");
-            });
-            (Some(tx), Some(poll))
-        } else {
-            (None, None)
-        };
         println!("Here");
         let privkey = ed25519_dalek::Keypair::generate(&mut thread_rng());
         let message_arr = b"hello";
@@ -516,38 +482,18 @@ pub mod test {
             Hash::default(),
         );
         assert!(tx.verify_precompiles(&feature_set).is_err());
-        if let Some(tx_poll) = tx_poll {
-            tx_poll
-                .send(())
-                .expect("Failed to send stop signal to polling thread");
-            poll.unwrap().join().expect("Polling thread panicked");
-        }
         inst.stop().expect("stop instance failed");
         qat_shim::qat::stop_session().expect("stop session failed");
-        // qat_shim::qat::qae_mem_destroy();
         // println!("Here 8");
     }
 
     #[test]
     fn test_offsets_to_ed25519_instruction() {
         qat_shim::qat::start_session("SSL").expect("start session failed");
-        qat_shim::qat::qae_mem_init().expect("qae_mem_init failed");
         let inst: Instance = qat::get_first_instance().expect("failed to get first instance");
         inst.set_address_translation()
             .expect("set address translation failed");
         inst.start().expect("start instance failed");
-        let (tx_poll, poll) = if inst.is_polled().unwrap() {
-            let (tx, rx) = channel();
-            let inst2 = inst.clone();
-            let poll = std::thread::spawn(move || {
-                while matches!(rx.try_recv(), Err(TryRecvError::Empty)) {
-                    let _ = inst2.clone().poll_once();
-                }
-            });
-            (Some(tx), Some(poll))
-        } else {
-            (None, None)
-        };
         solana_logger::setup();
 
         let privkey = ed25519_dalek::Keypair::generate(&mut thread_rng());
@@ -615,38 +561,18 @@ pub mod test {
             Hash::default(),
         );
         assert!(tx.verify_precompiles(&feature_set).is_err());
-        if let Some(tx_poll) = tx_poll {
-            tx_poll
-                .send(())
-                .expect("Failed to send stop signal to polling thread");
-            poll.unwrap().join().expect("Polling thread panicked");
-        }
         inst.stop().expect("stop instance failed");
         qat_shim::qat::stop_session().expect("stop session failed");
-        qat_shim::qat::qae_mem_destroy();
     }
 
     #[test]
     fn test_ed25519_malleability() {
         solana_logger::setup();
         qat_shim::qat::start_session("SSL").expect("start session failed");
-        qat_shim::qat::qae_mem_init().expect("qae_mem_init failed");
         let inst: Instance = qat::get_first_instance().expect("failed to get first instance");
         inst.set_address_translation()
             .expect("set address translation failed");
         inst.start().expect("start instance failed");
-        let (tx_poll, poll) = if inst.is_polled().unwrap() {
-            let (tx, rx) = channel();
-            let inst2 = inst.clone();
-            let poll = std::thread::spawn(move || {
-                while matches!(rx.try_recv(), Err(TryRecvError::Empty)) {
-                    let _ = inst2.clone().poll_once();
-                }
-            });
-            (Some(tx), Some(poll))
-        } else {
-            (None, None)
-        };
         let mint_keypair = Keypair::new();
 
         // sig created via ed25519_dalek: both pass
@@ -688,12 +614,6 @@ pub mod test {
 
         let feature_set = FeatureSet::all_enabled();
         assert!(tx.verify_precompiles(&feature_set).is_err()); // verify_strict does NOT pass
-        if let Some(tx_poll) = tx_poll {
-            tx_poll
-                .send(())
-                .expect("Failed to send stop signal to polling thread");
-            poll.unwrap().join().expect("Polling thread panicked");
-        }
         inst.stop().expect("stop instance failed");
         qat_shim::qat::stop_session().expect("stop session failed");
     }
